@@ -64,7 +64,7 @@ public class TableStorageManager {
                 long intialPos = fileChannel.position();
                 int bytesRead = fileChannel.read(seperatorBuf);
                 if (bytesRead == -1) {
-                    break;
+                    throw new IllegalArgumentException("Unexpected end of file");
                 }
                 seperatorBuf.rewind();
                 int firstByteValue = seperatorBuf.getInt();
@@ -87,7 +87,9 @@ public class TableStorageManager {
             FileChannel fileChannel = FileChannel.open(tableFilePath, READ, WRITE, CREATE);
         ) {
             fileChannel.write(ByteBuffer.wrap(tableDefinition.toBytes()));
-            fileChannel.write(ByteBuffer.allocate(4).putInt(HEADER_SEPERATOR_VALUE));
+            ByteBuffer separator = ByteBuffer.allocate(4).putInt(HEADER_SEPERATOR_VALUE);
+            separator.rewind();
+            fileChannel.write(separator);
         }
     }
     
