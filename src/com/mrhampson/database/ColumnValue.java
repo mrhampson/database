@@ -21,14 +21,14 @@ import java.util.Objects;
  */
 public interface ColumnValue<T> {
     ColumnDefinition getColumnDefinition();
-    void setValue(T value);
+    void setValue(Object value);
     T getValue();
     byte[] toBytes();
     
     @SuppressWarnings("unchecked")
     static <T> ColumnValue<T> fromColumnDefinition(ColumnDefinition definition) {
         Objects.requireNonNull(definition);
-        switch (definition.getDataType()) {
+        switch (definition.getStorageType()) {
             case VARCHAR:
                return (ColumnValue<T>)new VarCharColumnValue(definition); 
         }

@@ -23,8 +23,8 @@ import java.util.Arrays;
  */
 public class TestMain {
     public static void main(String[] args) {
-        ColumnDefinition nameColumn = new ColumnDefinition(DataType.VARCHAR, 100, "NAME");
-        ColumnDefinition ageColumn = new ColumnDefinition(DataType.VARCHAR, 100, "CITY");
+        ColumnDefinition nameColumn = new ColumnDefinition(StorageDataType.VARCHAR, 100, "NAME");
+        ColumnDefinition ageColumn = new ColumnDefinition(StorageDataType.VARCHAR, 100, "CITY");
         
         TableDefinition tableDefinition = new TableDefinition(
             "PEOPLE",

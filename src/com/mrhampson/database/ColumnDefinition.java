@@ -21,27 +21,26 @@ import java.util.Objects;
  */
 public class ColumnDefinition {
     static final int MAX_NAME_LENGTH = 256;
-    // Number of bytes in a column def on disk name + fieldLength + dataType
+    // Number of bytes in a column def on disk name + fieldLength + storageType
     static final int NUM_BYTES = 256 + 4 + 1;
     
-    private final DataType dataType;
+    private final StorageDataType storageType;
     private final int fieldLength;
     private final String columnName;
 
-    public ColumnDefinition(DataType dataType, int fieldLength, String columnName) {
-        Objects.requireNonNull(dataType);
+    public ColumnDefinition(StorageDataType storageType, int fieldLength, String columnName) {
+        Objects.requireNonNull(storageType);
         Objects.requireNonNull(columnName);
         if (columnName.length() > MAX_NAME_LENGTH) {
             throw new IllegalArgumentException("Name too long");
         }
-        
-        this.dataType = dataType;
+        this.storageType = storageType;
         this.fieldLength = fieldLength;
         this.columnName = columnName;
     }
-
-    public DataType getDataType() {
-        return dataType;
+    
+    public StorageDataType getStorageType() {
+        return storageType;
     }
 
     public int getFieldLength() {
@@ -55,7 +54,7 @@ public class ColumnDefinition {
     public byte[] toBytes() {
         ByteBuffer output = ByteBuffer.allocate(NUM_BYTES);
         // Data type
-        int dataTypeOrdinal = dataType.ordinal();
+        int dataTypeOrdinal = storageType.ordinal();
         if (dataTypeOrdinal > 256) {
             throw new IllegalStateException("Data type is too large. Too many data types defined");
         }
@@ -75,7 +74,7 @@ public class ColumnDefinition {
         }
         bytes.rewind();
         int dataTypeOrdinal = bytes.get();
-        DataType dataType = DataType.fromOrdinal(dataTypeOrdinal);
+        StorageDataType dataType = StorageDataType.fromOrdinal(dataTypeOrdinal);
         int fieldLength = bytes.getInt();
         String columnName = ByteBufferUtils.fromASCIIBytes(bytes);
         return new ColumnDefinition(dataType, fieldLength, columnName.trim());
@@ -87,12 +86,12 @@ public class ColumnDefinition {
         if (o == null || getClass() != o.getClass()) return false;
         ColumnDefinition that = (ColumnDefinition) o;
         return fieldLength == that.fieldLength &&
-                dataType == that.dataType &&
+                storageType == that.storageType &&
                 Objects.equals(columnName, that.columnName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataType, fieldLength, columnName);
+        return Objects.hash(storageType, fieldLength, columnName);
     }
 }

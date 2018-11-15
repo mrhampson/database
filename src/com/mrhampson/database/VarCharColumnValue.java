@@ -20,6 +20,7 @@ import java.util.Objects;
  * @author Marshall Hampson
  */
 public class VarCharColumnValue implements ColumnValue<String> {
+    private static final Class<String> CLASS = String.class;
     private final ColumnDefinition columnDefinition;
     private String value = null;
         
@@ -34,11 +35,15 @@ public class VarCharColumnValue implements ColumnValue<String> {
     }
 
     @Override
-    public void setValue(String value) {
-        if (value != null && value.length() > columnDefinition.getFieldLength()) {
+    public void setValue(Object value) {
+        if (value != null && !CLASS.equals(value.getClass())) {
+            throw new IllegalArgumentException("Wrong type for column");
+        }
+        String stringValue = (String)value;
+        if (stringValue != null && stringValue.length() > columnDefinition.getFieldLength()) {
             throw new IllegalArgumentException("Length out of range");
         }
-        this.value = value;
+        this.value = stringValue;
     }
 
     @Override

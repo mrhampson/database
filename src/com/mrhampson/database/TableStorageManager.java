@@ -19,6 +19,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
@@ -41,6 +42,10 @@ public class TableStorageManager {
     public void create(TableDefinition tableDefinition) throws IOException {
        tableFilePath.toFile().delete();
        writeHeader(tableDefinition);
+    }
+    
+    public void storeRecord(Record record) throws IOException {
+        fileChannel.write(ByteBuffer.wrap(record.toBytes()));
     }
     
     public void load() throws IOException {
