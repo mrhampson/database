@@ -27,6 +27,7 @@ public class TableDefinition {
     
     private final String tableName;
     private final List<ColumnDefinition> columns;
+    private final int rowSizeBytes;
 
     public TableDefinition(String tableName, List<ColumnDefinition> columns) {
         Objects.requireNonNull(tableName);
@@ -36,6 +37,7 @@ public class TableDefinition {
         }
         this.tableName = tableName;
         this.columns = Collections.unmodifiableList(new ArrayList<>(columns));
+        this.rowSizeBytes = this.columns.stream().mapToInt(ColumnDefinition::getFieldLength).sum();
     }
 
     public String getTableName() {
@@ -44,6 +46,10 @@ public class TableDefinition {
 
     public List<ColumnDefinition> getColumns() {
         return columns;
+    }
+    
+    public int getRowSize() {
+        return this.rowSizeBytes;
     }
     
     public byte[] toBytes() {

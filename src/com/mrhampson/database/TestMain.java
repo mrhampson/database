@@ -36,6 +36,12 @@ public class TestMain {
         try {
             dbTableStorageManager.create(tableDefinition);
             dbTableStorageManager.load();
+            
+            Record newRecord = new Record.Builder(tableDefinition)
+                    .setColumnValue("NAME", "Marshall")
+                    .setColumnValue("CITY", "Concord")
+                    .build();
+            dbTableStorageManager.storeRecord(newRecord);
             dbTableStorageManager.shutdown();
         }
         catch (IOException e) {

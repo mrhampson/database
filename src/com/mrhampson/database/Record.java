@@ -53,21 +53,20 @@ public class Record {
             Objects.requireNonNull(tableDefinition);
             this.tableDefinition = tableDefinition;
             this.values = new LinkedHashMap<>();
-            int byteCounter = 0;
             for (ColumnDefinition columnDefinition : this.tableDefinition.getColumns()) {
-                byteCounter += columnDefinition.getFieldLength();
                 this.values.put(columnDefinition.getColumnName(), ColumnValue.fromColumnDefinition(columnDefinition));
             }
-            this.recordBytes = byteCounter;
+            this.recordBytes = tableDefinition.getRowSize();
         }
        
-        public void setColumnValue(String columnName, Object value) {
+        public Builder setColumnValue(String columnName, Object value) {
             Objects.requireNonNull(columnName);
             ColumnValue<?> columnValue = this.values.get(columnName);
             if (columnValue == null) {
                 throw new IllegalArgumentException("Column not defined");
             }
             columnValue.setValue(value);
+            return this;
         }
         
         public Record build() {
