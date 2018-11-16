@@ -43,6 +43,26 @@ public class Record {
         }
         return buffer.array();
     }
+    
+    public static Record fromBytes(TableDefinition tableDefinition, ByteBuffer byteBuffer) {
+        Objects.requireNonNull(byteBuffer);
+        byteBuffer.rewind();
+        Builder builder = new Builder(tableDefinition);
+        for (ColumnDefinition definition : tableDefinition.getColumns()) {
+            StorageDataType storageDataType = definition.getStorageType();
+            switch (storageDataType) {
+            case INTEGER:
+                builder.setColumnValue(definition.getColumnName(), byteBuffer.getInt());
+                break;
+            case VARCHAR:
+                byte[] stringBytes = new byte[definition.getFieldLength()];
+                byteBuffer.get(stringBytes);
+                String string = new String(stringBytes, Constants.CHARSET);
+                builder.setColumnValue(definition.getColumnName(), string.trim());
+            }
+        }
+        return builder.build();
+    }
 
     public static final class Builder {
         private final int recordBytes;

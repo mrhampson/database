@@ -42,6 +42,10 @@ public class TestMain {
                     .setColumnValue("CITY", "Concord")
                     .build();
             dbTableStorageManager.storeRecord(newRecord);
+            
+            ColumnValue<?> valueToFind = new VarCharColumnValue(nameColumn);
+            valueToFind.setValue("Marshall");
+            Record foundRecord = dbTableStorageManager.findFirstMatch(valueToFind);
             dbTableStorageManager.shutdown();
         }
         catch (IOException e) {

@@ -17,9 +17,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
@@ -31,9 +29,10 @@ import static java.nio.file.StandardOpenOption.WRITE;
 public class TableStorageManager {
     private static final int HEADER_SEPERATOR_VALUE = 0xFFFFFFFF;
     
-    private volatile TableDefinition tableDefinition;
+    private TableDefinition tableDefinition;
     private final Path tableFilePath;
-    private volatile FileChannel fileChannel = null;
+    private FileChannel fileChannel = null;
+    private long tailByte = -1;
     
     public TableStorageManager(Path tableFilePath) {
         this.tableFilePath = tableFilePath;
@@ -46,45 +45,59 @@ public class TableStorageManager {
     
     public void storeRecord(Record record) throws IOException {
         fileChannel.write(ByteBuffer.wrap(record.toBytes()));
+        tailByte = fileChannel.position();
+    }
+    
+    public Record findFirstMatch(ColumnValue<?>... valuesToMatch) throws IOException {
+        long startPos = calculateDataStartByte(this.tableDefinition);
+        fileChannel.position(startPos);
+        ByteBuffer rowBuf = ByteBuffer.allocate(tableDefinition.getRowSize());
+        while (fileChannel.read(rowBuf) > 0) {
+            Record record = Record.fromBytes(tableDefinition, rowBuf);
+            rowBuf.clear();
+            for (ColumnValue<?> valueToMatch : valuesToMatch) {
+                ColumnValue<?> value = record.getColumnValues().get(valueToMatch.getColumnDefinition().getColumnName());
+                if (value.equals(valueToMatch)) {
+                    return record;
+                }
+            }
+        }
+        return null;
     }
     
     public void load() throws IOException {
         fileChannel = FileChannel.open(tableFilePath, READ, WRITE);
-        TableDefinition tableDefinition = readHeader();
-        this.tableDefinition = tableDefinition;
+        this.tableDefinition = readHeader();
+        tailByte = fileChannel.position();
     }
     
     private TableDefinition readHeader() throws IOException {
-        try(
-            FileChannel fileChannel = FileChannel.open(tableFilePath, READ, WRITE, CREATE);
-        ) {
-            ByteBuffer tableNameBuf = ByteBuffer.allocate(TableDefinition.MAX_NAME_LENGTH);
-            fileChannel.read(tableNameBuf);
-            String tableName = new String(tableNameBuf.array(), Constants.CHARSET).trim();
+        ByteBuffer tableNameBuf = ByteBuffer.allocate(TableDefinition.MAX_NAME_LENGTH);
+        fileChannel.read(tableNameBuf);
+        String tableName = new String(tableNameBuf.array(), Constants.CHARSET).trim();
 
-            List<ColumnDefinition> columns = new ArrayList<>();
-            ByteBuffer seperatorBuf = ByteBuffer.allocate(4);
-            ByteBuffer columnDefBuf = ByteBuffer.allocate(ColumnDefinition.NUM_BYTES);
-            while (true) {
-                long intialPos = fileChannel.position();
-                int bytesRead = fileChannel.read(seperatorBuf);
-                if (bytesRead == -1) {
-                    throw new IllegalArgumentException("Unexpected end of file");
-                }
-                seperatorBuf.rewind();
-                int firstByteValue = seperatorBuf.getInt();
-                if (firstByteValue == HEADER_SEPERATOR_VALUE) {
-                    break;
-                }
-                fileChannel.position(intialPos);
-                fileChannel.read(columnDefBuf);
-                columns.add(ColumnDefinition.fromBytes(columnDefBuf));
-                
-                seperatorBuf.clear();
-                columnDefBuf.clear();
+        List<ColumnDefinition> columns = new ArrayList<>();
+        ByteBuffer seperatorBuf = ByteBuffer.allocate(4);
+        ByteBuffer columnDefBuf = ByteBuffer.allocate(ColumnDefinition.NUM_BYTES);
+        while (true) {
+            long intialPos = fileChannel.position();
+            int bytesRead = fileChannel.read(seperatorBuf);
+            if (bytesRead == -1) {
+                throw new IllegalArgumentException("Unexpected end of file");
             }
-            return new TableDefinition(tableName, columns);
+            seperatorBuf.rewind();
+            int firstByteValue = seperatorBuf.getInt();
+            if (firstByteValue == HEADER_SEPERATOR_VALUE) {
+                break;
+            }
+            fileChannel.position(intialPos);
+            fileChannel.read(columnDefBuf);
+            columns.add(ColumnDefinition.fromBytes(columnDefBuf));
+            
+            seperatorBuf.clear();
+            columnDefBuf.clear();
         }
+        return new TableDefinition(tableName, columns);
     }
     
     private void writeHeader(TableDefinition tableDefinition) throws IOException {
@@ -102,5 +115,10 @@ public class TableStorageManager {
         if (fileChannel != null) {
             fileChannel.close();
         }
+    }
+    
+    private static long calculateDataStartByte(TableDefinition tableDefinition) {
+        Objects.requireNonNull(tableDefinition);
+        return tableDefinition.calculateByteLength() + 4;
     }
 }

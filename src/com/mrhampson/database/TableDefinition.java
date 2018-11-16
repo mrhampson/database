@@ -53,7 +53,7 @@ public class TableDefinition {
     }
     
     public byte[] toBytes() {
-        ByteBuffer output = ByteBuffer.allocate(calculateNumBytes());
+        ByteBuffer output = ByteBuffer.allocate(calculateByteLength());
         output.put(tableName.getBytes(Constants.CHARSET));
         output.position(MAX_NAME_LENGTH);
         for (ColumnDefinition columnDefinition : columns) {
@@ -62,7 +62,7 @@ public class TableDefinition {
         return output.array();
     }
     
-    private int calculateNumBytes() {
+    public int calculateByteLength() {
         return MAX_NAME_LENGTH + columns.size() * ColumnDefinition.NUM_BYTES;
     }
 
