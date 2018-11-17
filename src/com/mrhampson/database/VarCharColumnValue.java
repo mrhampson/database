@@ -62,4 +62,18 @@ public class VarCharColumnValue implements ColumnValue<String> {
                 .array();
         }
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        VarCharColumnValue that = (VarCharColumnValue) o;
+        return Objects.equals(columnDefinition, that.columnDefinition) &&
+                Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(columnDefinition, value);
+    }
 }
