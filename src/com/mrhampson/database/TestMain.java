@@ -41,8 +41,9 @@ public class TestMain {
                     .setColumnValue("NAME", "Marshall")
                     .setColumnValue("CITY", "Concord")
                     .build();
+            dbTableStorageManager.createIndex(new InMemoryHashIndex(nameColumn));
             dbTableStorageManager.storeRecord(newRecord);
-            
+                    
             ColumnValue<?> valueToFind = new VarCharColumnValue(nameColumn);
             valueToFind.setValue("Marshall");
             Record foundRecord = dbTableStorageManager.findFirstMatch(valueToFind);
