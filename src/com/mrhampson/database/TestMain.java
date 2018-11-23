@@ -24,18 +24,19 @@ public class TestMain {
             Arrays.asList(nameColumn, cityColumn)
         );
         Path dbFilePath = Paths.get("/Users/marshall/Desktop/custom-db.dat");
-        try { 
+        try {
+            RecordBuilder recordBuilder = RecordBuilder.forTable(tableDefinition);
             TableStorageManager dbTableStorageManager = new TableStorageManager(tableDefinition, dbFilePath);
             dbTableStorageManager.createIndex(new InMemoryHashIndex(nameColumn));
             List<Record> records = new ArrayList<>(1_000_000);
             for (int i = 0; i < 1_000_000; i++) {
-                Record record = new Record.Builder(tableDefinition)
+                Record record = recordBuilder.newRecord()
                     .setColumnValue("NAME", randomASCIIString(50))
                     .setColumnValue("CITY", randomASCIIString(50))
                     .build();
                 records.add(record);
             }
-            records.add(new Record.Builder(tableDefinition)
+            records.add(recordBuilder.newRecord()
                     .setColumnValue("NAME", "Marshall")
                     .setColumnValue("CITY", "Concord")
                     .build());

@@ -66,7 +66,7 @@ public class Record {
         return builder.build();
     }
 
-    public static final class Builder {
+    static final class Builder {
         private final int recordBytes;
         private final TableDefinition tableDefinition;
         private final Map<String, ColumnValue<?>> values;
