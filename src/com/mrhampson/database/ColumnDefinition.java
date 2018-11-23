@@ -9,7 +9,7 @@ import java.util.Objects;
 public class ColumnDefinition {
     static final int MAX_NAME_LENGTH = 256;
     // Number of bytes in a column def on disk name + fieldLength + storageType
-    static final int NUM_BYTES = 256 + 4 + 1;
+    static final int NUM_BYTES = MAX_NAME_LENGTH + 4 + 1;
     
     private final StorageDataType storageType;
     private final int fieldLength;

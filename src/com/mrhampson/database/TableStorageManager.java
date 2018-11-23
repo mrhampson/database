@@ -5,6 +5,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
@@ -16,79 +19,109 @@ import static java.nio.file.StandardOpenOption.WRITE;
 public class TableStorageManager {
     private static final int HEADER_SEPERATOR_VALUE = 0xFFFFFFFF;
     
-    private TableDefinition tableDefinition;
+    private final TableDefinition tableDefinition;
     private final Map<String, Index> indexes = new HashMap<>();
-    private final Path tableFilePath;
     private FileChannel fileChannel = null;
     private long tailByte = -1;
     
-    public TableStorageManager(Path tableFilePath) {
-        this.tableFilePath = tableFilePath;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    
+    public TableStorageManager(TableDefinition tableDefinition, Path tableFilePath) throws IOException {
+        Objects.requireNonNull(tableDefinition);
+        Objects.requireNonNull(tableFilePath);
+        this.tableDefinition = tableDefinition;
+        this.fileChannel = FileChannel.open(tableFilePath, READ, WRITE, CREATE);
+        if (!tableFilePath.toFile().isFile()) {
+            writeHeader(tableDefinition);
+        }
+        else {
+            load();
+        }
     }
+    
+    public void createIndex(Index index) {
+        executor.submit(() -> {
+            try {
+                indexes.put(index.getColumnDefinition().getColumnName(), index);
+                long startPos = calculateDataStartByte(this.tableDefinition);
+                fileChannel.position(startPos);
+                ByteBuffer rowBuf = ByteBuffer.allocate(tableDefinition.getRowSize());
+                while (fileChannel.read(rowBuf) > 0) {
+                    Record record = Record.fromBytes(tableDefinition, rowBuf);
+                    rowBuf.clear();
+                    ColumnValue<?> valueForIndex = record.getColumnValues().get(index.getColumnDefinition().getColumnName());
+                    if (valueForIndex != null) {
+                        index.updateIndex(valueForIndex, fileChannel.position() - record.getRecordBytes());
+                    }
+                }
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+    
+    
+    public void storeRecord(Record record) {
+        executor.submit(() -> {
+            try {
+                fileChannel.position(tailByte);
+                // Update indexes
+                for (ColumnValue<?> value : record.getColumnValues().values()) {
+                    Index index = this.indexes.get(value.getColumnDefinition().getColumnName());
+                    if (index != null) {
+                        index.updateIndex(value, tailByte);
+                    }
+                }
 
-    public void create(TableDefinition tableDefinition) throws IOException {
-       tableFilePath.toFile().delete();
-       writeHeader(tableDefinition);
-    }
-    
-    public void createIndex(Index index) throws IOException {
-        indexes.put(index.getColumnDefinition().getColumnName(), index);
-        long startPos = calculateDataStartByte(this.tableDefinition);
-        fileChannel.position(startPos);
-        ByteBuffer rowBuf = ByteBuffer.allocate(tableDefinition.getRowSize());
-        while (fileChannel.read(rowBuf) > 0) {
-            Record record = Record.fromBytes(tableDefinition, rowBuf);
-            rowBuf.clear();
-            ColumnValue<?> valueForIndex = record.getColumnValues().get(index.getColumnDefinition().getColumnName()); 
-            if (valueForIndex != null) {
-                index.updateIndex(valueForIndex, fileChannel.position() - record.getRecordBytes());
+                fileChannel.write(ByteBuffer.wrap(record.toBytes()));
+                tailByte = fileChannel.position();
             }
-        }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
     
-    
-    public void storeRecord(Record record) throws IOException {
-        fileChannel.position(tailByte);
-        // Update indexes
-        for (ColumnValue<?> value : record.getColumnValues().values()) {
-            Index index = this.indexes.get(value.getColumnDefinition().getColumnName());
+    public Future<Record> findFirstMatch(ColumnValue<?> valueToMatch) { 
+        return executor.submit(() -> {
+            ByteBuffer rowBuf = ByteBuffer.allocate(tableDefinition.getRowSize());
+            // Check if we can use an index
+            Index index = indexes.get(valueToMatch.getColumnDefinition().getColumnName());
             if (index != null) {
-                index.updateIndex(value, tailByte);
+                List<Long> locations = index.getLocations(valueToMatch);
+                fileChannel.position(locations.get(0));
+                fileChannel.read(rowBuf);
+                return Record.fromBytes(tableDefinition, rowBuf);
             }
-        }
-        
-        fileChannel.write(ByteBuffer.wrap(record.toBytes()));
-        tailByte = fileChannel.position();
+
+            long startPos = calculateDataStartByte(this.tableDefinition);
+            fileChannel.position(startPos);
+            while (fileChannel.read(rowBuf) > 0) {
+                Record record = Record.fromBytes(tableDefinition, rowBuf);
+                rowBuf.clear();
+                ColumnValue<?> value = record.getColumnValues().get(valueToMatch.getColumnDefinition().getColumnName());
+                if (value.equals(valueToMatch)) {
+                    return record;
+                }
+            }
+            return null;
+        });
     }
     
-    public Record findFirstMatch(ColumnValue<?> valueToMatch) throws IOException {
-        ByteBuffer rowBuf = ByteBuffer.allocate(tableDefinition.getRowSize());
-        // Check if we can use an index
-        Index index = indexes.get(valueToMatch.getColumnDefinition().getColumnName());
-        if (index != null) {
-            List<Long> locations = index.getLocations(valueToMatch);    
-            fileChannel.position(locations.get(0));
-            fileChannel.read(rowBuf);
-            return Record.fromBytes(tableDefinition, rowBuf);
-        }
-        
-        long startPos = calculateDataStartByte(this.tableDefinition);
-        fileChannel.position(startPos);
-        while (fileChannel.read(rowBuf) > 0) {
-            Record record = Record.fromBytes(tableDefinition, rowBuf);
-            rowBuf.clear();
-            ColumnValue<?> value = record.getColumnValues().get(valueToMatch.getColumnDefinition().getColumnName());
-            if (value.equals(valueToMatch)) {
-                return record;
+    private void load() throws IOException {
+        executor.submit(() -> {
+            try {
+                TableDefinition definitionOnDisk = readHeader();
+                if (!definitionOnDisk.equals(this.tableDefinition)) {
+                    throw new IOException("Table definition doesn't match");
+                }
+                tailByte = fileChannel.position();
             }
-        }
-        return null;
-    }
-    
-    public void load() throws IOException {
-        fileChannel = FileChannel.open(tableFilePath, READ, WRITE);
-        this.tableDefinition = readHeader();
-        tailByte = fileChannel.position();
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
     
     private TableDefinition readHeader() throws IOException {
@@ -121,17 +154,14 @@ public class TableStorageManager {
     }
     
     private void writeHeader(TableDefinition tableDefinition) throws IOException {
-        try(
-            FileChannel fileChannel = FileChannel.open(tableFilePath, READ, WRITE, CREATE);
-        ) {
-            fileChannel.write(ByteBuffer.wrap(tableDefinition.toBytes()));
-            ByteBuffer separator = ByteBuffer.allocate(4).putInt(HEADER_SEPERATOR_VALUE);
-            separator.rewind();
-            fileChannel.write(separator);
-        }
+        fileChannel.write(ByteBuffer.wrap(tableDefinition.toBytes()));
+        ByteBuffer separator = ByteBuffer.allocate(4).putInt(HEADER_SEPERATOR_VALUE);
+        separator.rewind();
+        fileChannel.write(separator);
     }
     
     public void shutdown() throws IOException {
+        executor.shutdown();
         if (fileChannel != null) {
             fileChannel.close();
         }
