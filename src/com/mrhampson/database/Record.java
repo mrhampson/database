@@ -31,6 +31,21 @@ public class Record {
         return buffer.array();
     }
     
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Record[ ");
+        for (ColumnValue<?> columnValue : columnValues.values()) {
+            sb.append(columnValue.getColumnDefinition().getColumnName());
+            sb.append('=');
+            sb.append(columnValue.getValue() != null ? columnValue.getValue().toString() : "null");
+            sb.append(", ");
+        }
+        sb.setLength(sb.length() - 2);
+        sb.append("]");
+        return sb.toString();
+    }
+    
     public static Record fromBytes(TableDefinition tableDefinition, ByteBuffer byteBuffer) {
         Objects.requireNonNull(byteBuffer);
         byteBuffer.rewind();

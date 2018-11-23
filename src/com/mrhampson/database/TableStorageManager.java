@@ -22,7 +22,7 @@ public class TableStorageManager {
     private final TableDefinition tableDefinition;
     private final Map<String, Index> indexes = new HashMap<>();
     private FileChannel fileChannel = null;
-    private long tailByte = -1;
+    private long tailByte;
     
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     
@@ -37,6 +37,7 @@ public class TableStorageManager {
         else {
             load();
         }
+        this.tailByte = calculateDataStartByte(tableDefinition);
     }
     
     public void createIndex(Index index) {
@@ -90,9 +91,14 @@ public class TableStorageManager {
             Index index = indexes.get(valueToMatch.getColumnDefinition().getColumnName());
             if (index != null) {
                 List<Long> locations = index.getLocations(valueToMatch);
-                fileChannel.position(locations.get(0));
-                fileChannel.read(rowBuf);
-                return Record.fromBytes(tableDefinition, rowBuf);
+                if (!locations.isEmpty()) {
+                    fileChannel.position(locations.get(0));
+                    fileChannel.read(rowBuf);
+                    return Record.fromBytes(tableDefinition, rowBuf);
+                }
+                else {
+                    return null;
+                }
             }
 
             long startPos = calculateDataStartByte(this.tableDefinition);
