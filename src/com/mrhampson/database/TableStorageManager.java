@@ -62,6 +62,36 @@ public class TableStorageManager {
         });
     }
     
+    public void bulkStoreRecords(List<Record> records) {
+        executor.submit(() -> {
+            System.out.println("Inserting " + records.size() + " records");
+            long start = System.nanoTime();
+            try {
+                fileChannel.position(tailByte);
+                int rowSize = tableDefinition.getRowSize();
+                ByteBuffer allRecords = ByteBuffer.allocate(rowSize * records.size());
+                long startRecordByte = tailByte;
+                for (Record record : records) {
+                    for (ColumnValue<?> value : record.getColumnValues().values()) {
+                        Index index = this.indexes.get(value.getColumnDefinition().getColumnName());
+                        if (index != null) {
+                            index.updateIndex(value, startRecordByte);
+                        }
+                    }
+                    allRecords.put(record.toBytes());
+                    startRecordByte += rowSize;
+                }
+                allRecords.rewind();
+                fileChannel.write(allRecords);
+                tailByte = fileChannel.position();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+            long end = System.nanoTime();
+            System.out.println("Stored in " + (end - start)/1_000_000 + " ms");
+        });
+    }
     
     public void storeRecord(Record record) {
         executor.submit(() -> {

@@ -3,7 +3,9 @@ package com.mrhampson.database;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Future;
 
@@ -25,20 +27,19 @@ public class TestMain {
         try { 
             TableStorageManager dbTableStorageManager = new TableStorageManager(tableDefinition, dbFilePath);
             dbTableStorageManager.createIndex(new InMemoryHashIndex(nameColumn));
-            
+            List<Record> records = new ArrayList<>(1_000_000);
             for (int i = 0; i < 1_000_000; i++) {
                 Record record = new Record.Builder(tableDefinition)
                     .setColumnValue("NAME", randomASCIIString(50))
                     .setColumnValue("CITY", randomASCIIString(50))
                     .build();
-                dbTableStorageManager.storeRecord(record);
+                records.add(record);
             }
-
-            Record record = new Record.Builder(tableDefinition)
+            records.add(new Record.Builder(tableDefinition)
                     .setColumnValue("NAME", "Marshall")
                     .setColumnValue("CITY", "Concord")
-                    .build();
-            dbTableStorageManager.storeRecord(record);
+                    .build());
+            dbTableStorageManager.bulkStoreRecords(records);
             
             ColumnValue<?> valueToFind = new VarCharColumnValue(nameColumn);
             valueToFind.setValue("Marshall");
